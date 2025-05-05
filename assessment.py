@@ -1,12 +1,10 @@
 import streamlit as st
 import pandas as pd
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from io import BytesIO
+import numpy as np
+import io
 import base64
+from fpdf import FPDF
+import matplotlib.pyplot as plt
 
 # Set page config
 st.set_page_config(
@@ -93,123 +91,109 @@ def next_step():
 def prev_step():
     st.session_state.current_step -= 1
 
-# Function to create PDF
+# Function to create PDF using fpdf
 def create_pdf():
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
+    pdf = FPDF()
+    pdf.add_page()
     
-    # Create a custom title style
-    styles.add(ParagraphStyle(
-        name='Title',
-        parent=styles['Heading1'],
-        alignment=TA_CENTER,
-        fontSize=16,
-        spaceAfter=12
-    ))
+    # Set up fonts
+    pdf.set_font('Arial', 'B', 16)
     
-    # Create a custom heading style
-    styles.add(ParagraphStyle(
-        name='Heading2',
-        parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=6,
-        spaceBefore=12
-    ))
-    
-    styles.add(ParagraphStyle(
-        name='Heading3',
-        parent=styles['Heading3'],
-        fontSize=12,
-        spaceAfter=6,
-        spaceBefore=6
-    ))
-    
-    # Create content for the PDF
-    content = []
-    
-    # Add title
-    content.append(Paragraph("Healthcare Leadership Self-Assessment Report", styles['Title']))
-    content.append(Spacer(1, 12))
+    # Title
+    pdf.cell(0, 10, 'Healthcare Leadership Self-Assessment Report', 0, 1, 'C')
+    pdf.ln(5)
     
     # Part 1: Quantitative Assessment
-    content.append(Paragraph("Part 1: Quantitative Self-Assessment", styles['Heading2']))
-    content.append(Paragraph("Rating Scale:", styles['Normal']))
-    content.append(Paragraph("1 = Novice: Limited experience or confidence in this area", styles['Normal']))
-    content.append(Paragraph("2 = Developing: Basic understanding with occasional application", styles['Normal']))
-    content.append(Paragraph("3 = Competent: Consistent application in routine situations", styles['Normal']))
-    content.append(Paragraph("4 = Proficient: Adaptable application across diverse situations", styles['Normal']))
-    content.append(Paragraph("5 = Expert: Intuitive mastery with ability to coach others", styles['Normal']))
-    content.append(Spacer(1, 12))
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, 'Part 1: Quantitative Self-Assessment', 0, 1, 'L')
+    
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(0, 6, 'Rating Scale:', 0, 1, 'L')
+    pdf.cell(0, 6, '1 = Novice: Limited experience or confidence in this area', 0, 1, 'L')
+    pdf.cell(0, 6, '2 = Developing: Basic understanding with occasional application', 0, 1, 'L')
+    pdf.cell(0, 6, '3 = Competent: Consistent application in routine situations', 0, 1, 'L')
+    pdf.cell(0, 6, '4 = Proficient: Adaptable application across diverse situations', 0, 1, 'L')
+    pdf.cell(0, 6, '5 = Expert: Intuitive mastery with ability to coach others', 0, 1, 'L')
+    pdf.ln(5)
     
     # Create quantitative results tables for each category
     for category, items in assessment_categories.items():
-        content.append(Paragraph(category, styles['Heading3']))
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, category, 0, 1, 'L')
         
-        data = []
-        data.append(["Competency", "Rating"])
+        pdf.set_font('Arial', 'B', 10)
         
+        # Table header
+        pdf.cell(160, 8, 'Competency', 1, 0, 'L')
+        pdf.cell(30, 8, 'Rating', 1, 1, 'C')
+        
+        # Table rows
+        pdf.set_font('Arial', '', 10)
         for item in items:
+            # Adjust text to fit in cell
+            competency_text = item
+            if len(competency_text) > 80:
+                competency_text = competency_text[:77] + '...'
+                
             if item in st.session_state.quantitative_responses:
-                rating = st.session_state.quantitative_responses[item]
-                data.append([item, rating])
+                rating = str(st.session_state.quantitative_responses[item])
             else:
-                data.append([item, "Not rated"])
+                rating = "Not rated"
+                
+            pdf.cell(160, 8, competency_text, 1, 0, 'L')
+            pdf.cell(30, 8, rating, 1, 1, 'C')
         
-        table = Table(data, colWidths=[400, 50])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (1, 0), colors.black),
-            ('ALIGN', (0, 0), (1, 0), 'CENTER'),
-            ('ALIGN', (1, 1), (1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (1, 0), 12),
-            ('BACKGROUND', (0, 1), (1, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-        
-        content.append(table)
-        content.append(Spacer(1, 12))
+        pdf.ln(5)
     
     # Part 2: Qualitative Assessment
-    content.append(Paragraph("Part 2: Qualitative Self-Assessment", styles['Heading2']))
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, 'Part 2: Qualitative Self-Assessment', 0, 1, 'L')
     
     for category, questions in qualitative_questions.items():
-        content.append(Paragraph(category, styles['Heading3']))
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, category, 0, 1, 'L')
         
         for i, question in enumerate(questions):
+            pdf.set_font('Arial', 'B', 10)
+            pdf.multi_cell(0, 6, f"Q: {question}", 0, 'L')
+            
             key = f"{category}_qualitative_{i}"
-            content.append(Paragraph(f"<b>Q: {question}</b>", styles['Normal']))
+            pdf.set_font('Arial', '', 10)
             
             if key in st.session_state.qualitative_responses:
                 response = st.session_state.qualitative_responses[key]
-                content.append(Paragraph(f"A: {response}", styles['Normal']))
+                pdf.multi_cell(0, 6, f"A: {response}", 0, 'L')
             else:
-                content.append(Paragraph("A: No response provided", styles['Normal']))
+                pdf.multi_cell(0, 6, "A: No response provided", 0, 'L')
             
-            content.append(Spacer(1, 6))
-        
-        content.append(Spacer(1, 6))
+            pdf.ln(5)
     
     # Part 3: Strengths and Development
-    content.append(Paragraph("Part 3: Strengths and Development Opportunities", styles['Heading2']))
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, 'Part 3: Strengths and Development Opportunities', 0, 1, 'L')
     
     for i, question in enumerate(strength_development_questions):
         key = f"strength_development_{i}"
-        content.append(Paragraph(f"<b>{question}</b>", styles['Normal']))
         
+        pdf.set_font('Arial', 'B', 10)
+        pdf.multi_cell(0, 6, question, 0, 'L')
+        
+        pdf.set_font('Arial', '', 10)
         if key in st.session_state.strength_development_responses:
             response = st.session_state.strength_development_responses[key]
-            content.append(Paragraph(f"{response}", styles['Normal']))
+            pdf.multi_cell(0, 6, response, 0, 'L')
         else:
-            content.append(Paragraph("No response provided", styles['Normal']))
+            pdf.multi_cell(0, 6, "No response provided", 0, 'L')
         
-        content.append(Spacer(1, 6))
+        pdf.ln(5)
     
-    # Build the PDF
-    doc.build(content)
-    pdf_data = buffer.getvalue()
-    buffer.close()
+    # Save the PDF to a BytesIO object
+    pdf_output = io.BytesIO()
+    pdf.output(pdf_output)
+    pdf_data = pdf_output.getvalue()
+    pdf_output.close()
     
     return pdf_data
 
@@ -354,45 +338,68 @@ elif st.session_state.current_step == 4:
     """)
     
     if st.button("Generate PDF Report"):
-        pdf_data = create_pdf()
-        st.markdown(get_pdf_download_link(pdf_data), unsafe_allow_html=True)
-        
-        # Display a summary of the assessment
-        st.subheader("Assessment Summary")
-        
-        # Calculate average scores per category
-        category_scores = {}
-        for category, items in assessment_categories.items():
-            total = 0
-            count = 0
-            for item in items:
-                if item in st.session_state.quantitative_responses:
-                    total += st.session_state.quantitative_responses[item]
-                    count += 1
+        try:
+            pdf_data = create_pdf()
+            st.markdown(get_pdf_download_link(pdf_data), unsafe_allow_html=True)
             
-            if count > 0:
-                category_scores[category] = round(total / count, 1)
-            else:
-                category_scores[category] = 0
-        
-        # Create a dataframe for the scores
-        df_scores = pd.DataFrame({
-            'Category': list(category_scores.keys()),
-            'Average Score': list(category_scores.values())
-        })
-        
-        # Display the scores
-        st.bar_chart(df_scores.set_index('Category'))
-        
-        st.markdown("""
-        ### Next Steps
-        
-        1. Review your full assessment in the downloaded PDF
-        2. Reflect on your identified strengths and development areas
-        3. Create a personal development plan based on your findings
-        4. Share your insights with mentors or coaches as appropriate
-        5. Set a date to retake this assessment to track your progress
-        """)
+            # Display a summary of the assessment
+            st.subheader("Assessment Summary")
+            
+            # Calculate average scores per category
+            category_scores = {}
+            for category, items in assessment_categories.items():
+                total = 0
+                count = 0
+                for item in items:
+                    if item in st.session_state.quantitative_responses:
+                        total += st.session_state.quantitative_responses[item]
+                        count += 1
+                
+                if count > 0:
+                    category_scores[category] = round(total / count, 1)
+                else:
+                    category_scores[category] = 0
+            
+            # Create a dataframe for the scores
+            df_scores = pd.DataFrame({
+                'Category': list(category_scores.keys()),
+                'Average Score': list(category_scores.values())
+            })
+            
+            # Create a bar chart using matplotlib
+            fig, ax = plt.subplots(figsize=(10, 5))
+            bars = ax.bar(df_scores['Category'], df_scores['Average Score'], color='steelblue')
+            ax.set_title('Average Scores by Category')
+            ax.set_xlabel('Category')
+            ax.set_ylabel('Average Score')
+            ax.set_ylim(0, 5)
+            ax.grid(axis='y', linestyle='--', alpha=0.7)
+            
+            # Add labels on top of bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                        f'{height:.1f}', ha='center', va='bottom')
+            
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            
+            # Display the chart
+            st.pyplot(fig)
+            
+            st.markdown("""
+            ### Next Steps
+            
+            1. Review your full assessment in the downloaded PDF
+            2. Reflect on your identified strengths and development areas
+            3. Create a personal development plan based on your findings
+            4. Share your insights with mentors or coaches as appropriate
+            5. Set a date to retake this assessment to track your progress
+            """)
+        except Exception as e:
+            st.error(f"An error occurred while generating the PDF: {str(e)}")
+            st.info("Please try again or contact support if the issue persists.")
     
     col1, col2 = st.columns(2)
     with col1:
