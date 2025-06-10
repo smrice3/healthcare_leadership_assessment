@@ -189,11 +189,8 @@ def create_pdf():
         
         pdf.ln(5)
     
-    # Save the PDF to a BytesIO object
-    pdf_output = io.BytesIO()
-    pdf.output(pdf_output)
-    pdf_data = pdf_output.getvalue()
-    pdf_output.close()
+    # FIXED: Get PDF data as bytes directly
+    pdf_data = pdf.output(dest='S').encode('latin1')
     
     return pdf_data
 
